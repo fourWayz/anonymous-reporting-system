@@ -16,35 +16,31 @@ describe("AnonGuard Contract", function () {
         deployer = getWallet(LOCAL_RICH_WALLETS[0].privateKey);
         address1 = getWallet(LOCAL_RICH_WALLETS[1].privateKey);
         address2 = getWallet(LOCAL_RICH_WALLETS[2].privateKey);
-        whisperchain = await deployContract("IdentityManagement", [], { wallet: deployer , silent: true });
+        owner = getWallet(LOCAL_RICH_WALLETS[3].privateKey);
+        whisperchain = await deployContract("WhisperChain", [], { wallet: deployer , silent: true });
       });
 
+    it("should allow an anonymous report submission", async function () {
+        const reportContent = "This is an anonymous report.";
+        const reportTag = "Corruption";
 
-  it("should allow an anonymous report submission", async function () {
-    const reportContent = "This is an anonymous report.";
-    const reportTag = "Corruption";
+        // Submit a report
+        const tx = await (whisperchain.connect(address1) as Contract).submitReport(reportContent, reportTag);
 
-    // Submit a report
-    const tx = await (whisperchain.connect(address1) as Contract).submitReport(reportContent, reportTag);
+        // Wait for the transaction to be mined
+        const receipt = await tx.wait(); 
 
-    // Wait for the transaction to be mined
-    await tx.wait(); 
+        const log = receipt.logs.find(log => log.fragment?.name === "ReportSubmitted");
 
-    // Retrieve the report using the emitted report ID
-    const reportId = ethers.keccak256(
-      new ethers.AbiCoder.encode(
-        ["string", "string", "uint256", "address"],
-        [reportContent, reportTag, (await ethers.getBlock()).timestamp, addr1.address]
-      )
-    );
+        const reportId = log.args[0];
 
-    // Check that the report exists
-    const report = await anonGuard.getReport(reportId);
-
-    expect(report.content).to.equal(reportContent);
-    expect(report.tag).to.equal(reportTag);
-    expect(report.status).to.equal(0); // Pending
-    expect(report.voteCount).to.equal(0);
-    expect(report.comments).to.be.an("array").that.is.empty;
-  });
+          // Check that the report exists
+        const report = await (whisperchain.connect(owner) as Contract).getReport(reportId);
+        
+        expect(report.content).to.equal(reportContent);
+        expect(report.tag).to.equal(reportTag);
+        expect(report.status).to.equal(0); // Pending
+        expect(report.voteCount).to.equal(0);
+        expect(report.comments).to.be.an("array").that.is.empty;
+    });
 })
